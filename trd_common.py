@@ -106,6 +106,14 @@ class TradingBot:
                 logging.error(f"Nem sikerült betölteni a pozíciókat: {e}")
         return []
 
+    async def is_valid_token(self, token_address: str) -> bool:
+        try:
+            resp = await self.client.get_token_supply(Pubkey.from_string(token_address))
+            return resp.value is not None
+        except Exception as e:
+            logging.warning(f"Nem érvényes token cím: {token_address} – {e}")
+            return False
+
     async def fetch_token_price(self, token_address: str) -> float:
         try:
             url = f"https://lite-api.jup.ag/price/v2?ids={token_address}"
@@ -122,12 +130,18 @@ class TradingBot:
     async def process_token(self, token_address: str):
         logging.info(f"📥 Üzenet feldolgozása: {token_address}")
 
+        if not await self.is_valid_token(token_address):
+            logging.warning(f"🚫 Nem érvényes token cím: {token_address}")
+            await self.send_telegram_message(f"🚫 Nem érvényes token cím: {token_address}")
+            return
+
         if any(t["token"] == token_address for t in self.active_trades):
             logging.warning(f"⚠️ Már létezik pozíció ezzel a tokennel: {token_address}")
             await self.send_telegram_message(f"⚠️ Már nyitott pozíció van: {token_address}")
             return
 
-        #await asyncio.sleep(random.uniform(3, 8))  # Random delay before buy
+        await asyncio.sleep(random.uniform(2, 5))  # Random delay before buy
+
         while True:
             try:
                 amount = int(float(self.strategy.get("buy_amount_usdc", 1)) * 1_000_000)
@@ -143,7 +157,6 @@ class TradingBot:
 
                 response = self.jupiter.order_and_execute(order)
                 logging.info(f"✅ Vásárlás sikeres: {response}")
-                await self.send_telegram_message(f"✅ Vásárlás sikeres: {token_address}")
 
                 bought_at = await self.fetch_token_price(token_address)
                 output_amount_str = response.get("outputAmountResult")
@@ -158,13 +171,11 @@ class TradingBot:
                 })
                 self.save_trades()
                 break
-                
+
             except Exception as e:
                 logging.error(f"❌ Vásárlási hiba: {e}, újrapróbálkozás...")
-                await self.send_telegram_message(f"❌ Vásárlási hiba: {e}, újrapróbálkozás...")
 
     async def execute_sell(self, token_address: str, amount: int):
-        #await asyncio.sleep(30)  # Delay before executing sell
         logging.debug(f"Eladási kérés paraméterei: input={token_address}, output={self.USDC_MINT}, amount={amount}")
         try:
             slippage = float(self.strategy.get("slippage", 0.5))
@@ -177,11 +188,8 @@ class TradingBot:
             )
             response = self.jupiter.order_and_execute(order)
             logging.info(f"✅ Eladás sikeres: {response}")
-            await self.send_telegram_message(f"✅ Eladás sikeres: {token_address} - {amount / 1_000_000} token")
-            logging.info(f"Eladás válasz: {response}")
         except Exception as e:
             logging.error(f"[!] Eladási hiba: {e}")
-            await self.send_telegram_message(f"❌ Eladási hiba: {e}")
 
     async def check_sell_conditions(self):
         remaining_trades = []
@@ -231,13 +239,7 @@ class TradingBot:
         self.save_trades()
 
     async def send_telegram_message(self, message: str):
-        url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
-        payload = {"chat_id": self.chat_id, "text": message}
-        async with httpx.AsyncClient() as client:
-            try:
-                await client.post(url, json=payload)
-            except Exception as e:
-                logging.error(f"Telegram üzenetküldési hiba: {e}")
+        return  # Üzenetküldés letiltva teljesen
 
     def extract_token_address(self, text: str) -> str | None:
         match = re.search(r'[1-9A-HJ-NP-Za-km-z]{32,44}', text)
@@ -281,4 +283,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
