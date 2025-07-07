@@ -142,7 +142,8 @@ class TradingBot:
 
         await asyncio.sleep(random.uniform(2, 5))  # Random delay before buy
 
-        while True:
+        max_retries = 10
+        for attempt in range(max_retries):
             try:
                 amount = int(float(self.strategy.get("buy_amount_usdc", 1)) * 1_000_000)
                 slippage = float(self.strategy.get("slippage", 0.5))
@@ -173,7 +174,7 @@ class TradingBot:
                 break
 
             except Exception as e:
-                logging.error(f"❌ Vásárlási hiba: {e}, újrapróbálkozás...")
+                logging.error(f"❌ Vásárlási hiba ({attempt + 1}/{max_retries}): {e}")
 
     async def execute_sell(self, token_address: str, amount: int):
         logging.debug(f"Eladási kérés paraméterei: input={token_address}, output={self.USDC_MINT}, amount={amount}")
