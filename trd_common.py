@@ -140,7 +140,7 @@ class TradingBot:
             await self.send_telegram_message(f"⚠️ Már nyitott pozíció van: {token_address}")
             return
 
-        await asyncio.sleep(random.uniform(2, 5))  # Random delay before buy
+        await asyncio.sleep(random.uniform(2, 5))
 
         max_retries = 10
         for attempt in range(max_retries):
@@ -175,6 +175,16 @@ class TradingBot:
 
             except Exception as e:
                 logging.error(f"❌ Vásárlási hiba ({attempt + 1}/{max_retries}): {e}")
+
+    def extract_token_addresses(self, text: str) -> List[str]:
+        return re.findall(r"[1-9A-HJ-NP-Za-km-z]{32,44}", text)
+
+    async def handle_message(self, update: dict):
+        message = update.get("message", {}).get("text")
+        if message:
+            token_addresses = self.extract_token_addresses(message)
+            for token_address in token_addresses:
+                await self.process_token(token_address)
 
     async def execute_sell(self, token_address: str, amount: int):
         logging.debug(f"Eladási kérés paraméterei: input={token_address}, output={self.USDC_MINT}, amount={amount}")
@@ -240,18 +250,7 @@ class TradingBot:
         self.save_trades()
 
     async def send_telegram_message(self, message: str):
-        return  # Üzenetküldés letiltva teljesen
-
-    def extract_token_address(self, text: str) -> str | None:
-        match = re.search(r'[1-9A-HJ-NP-Za-km-z]{32,44}', text)
-        return match.group(0) if match else None
-
-    async def handle_message(self, update: dict):
-        message = update.get("message", {}).get("text")
-        if message:
-            token_address = self.extract_token_address(message)
-            if token_address:
-                await self.process_token(token_address)
+        return
 
     async def poll_telegram(self):
         offset = None
@@ -276,7 +275,7 @@ class TradingBot:
                 poll_updates(),
                 self.check_sell_conditions()
             )
-            await asyncio.sleep(10)  # 10 másodpercenként újra
+            await asyncio.sleep(10)
 
 def main():
     bot = TradingBot()
