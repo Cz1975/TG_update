@@ -165,13 +165,13 @@ class TradingBot:
                 output_amount_str = response.get("outputAmountResult")
                 output_amount = int(output_amount_str) if output_amount_str else 0
 
-  # Slippage határ ellenőrzés
+                # Slippage határ ellenőrzés
                 if output_amount == 0 or output_amount < amount * (1 - slippage / 100):
                     msg = f"⚠️ Slippage miatt elutasított vásárlás ({attempt+1}/{max_retries}): {token_address}"
                     logging.warning(msg)
                     await self.send_telegram_message(msg)
                     continue  # újrapróbálkozás
- # Vásárlás sikeres
+                # Vásárlás sikeres
                 bought_at = await self.fetch_token_price(token_address)
                 self.active_trades.append({
                     "token": token_address,
