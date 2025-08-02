@@ -182,7 +182,12 @@ class TradingBot:
                 })
                 self.save_trades()
                 
-                msg = f"✅ Vásárlás sikeres: {token_address} - Amount: {output_amount / 1_000_000:.6f}"
+                msg = (
+                    f"✅ Vásárlás sikeres\n"
+                    f"Token: {token_address}\n"
+                    f"Összeg: {output_amount / 1_000_000:.6f} token\n"
+                    f"Árfolyam: {bought_at:.6f} USDC/token"
+                )
                 logging.info(msg)
                 await self.send_telegram_message(msg)
                 
