@@ -221,10 +221,13 @@ class TradingBot:
             )
             response = self.jupiter.order_and_execute(order)
             logging.info(f"✅ Eladás sikeres: {response}")
+
+            # Lekérjük az aktuális árfolyamot
+            price = await self.fetch_token_price(token_address)
             msg = (
                   f"✅ Eladás sikeres\n"
                   f"Token: {token_address}\n"
-                  f"Eladott összeg: {amount / 1_000_000:.6f} token"
+                  f"Eladott összeg: {amount / 1_000_000:.6f} token\n"
                   f"Árfolyam: {price:.6f} USDC/token"
             )
             await self.send_telegram_message(msg)
