@@ -42,6 +42,10 @@ logger.addHandler(stream_handler)
 
 class TradingBot:
     def __init__(self):
+                # Telegram több chat ID támogatás
+        chat_ids_str = os.getenv("TELEGRAM_NOTIFY_IDS", "")
+        self.notify_chat_ids = [cid.strip() for cid in chat_ids_str.split(",") if cid.strip()]
+
         solana_url = os.getenv("SOLANA_RPC_URL")
         self.client = AsyncClient(solana_url, commitment=Confirmed)
 
@@ -157,12 +161,18 @@ class TradingBot:
                 )
 
                 response = self.jupiter.order_and_execute(order)
-                logging.info(f"✅ Vásárlás sikeres: {response}")
-
-                bought_at = await self.fetch_token_price(token_address)
+            
                 output_amount_str = response.get("outputAmountResult")
-                output_amount = int(output_amount_str) if output_amount_str else amount
+                output_amount = int(output_amount_str) if output_amount_str else 0
 
+  # Slippage határ ellenőrzés
+                if output_amount == 0 or output_amount < amount * (1 - slippage / 100):
+                    msg = f"⚠️ Slippage miatt elutasított vásárlás ({attempt+1}/{max_retries}): {token_address}"
+                    logging.warning(msg)
+                    await self.send_telegram_message(msg)
+                    continue  # újrapróbálkozás
+ # Vásárlás sikeres
+                bought_at = await self.fetch_token_price(token_address)
                 self.active_trades.append({
                     "token": token_address,
                     "bought_at": bought_at,
@@ -171,10 +181,17 @@ class TradingBot:
                     "steps_executed": []
                 })
                 self.save_trades()
+                
+                msg = f"✅ Vásárlás sikeres: {token_address} - Amount: {output_amount / 1_000_000:.6f}"
+                logging.info(msg)
+                await self.send_telegram_message(msg)
+                
                 break
 
             except Exception as e:
-                logging.error(f"❌ Vásárlási hiba ({attempt + 1}/{max_retries}): {e}")
+                msg = f"❌ Vásárlási hiba ({attempt+1}/{max_retries}): {e}"
+                logging.error(msg)
+                await self.send_telegram_message(msg)
 
     def extract_token_addresses(self, text: str) -> List[str]:
         return re.findall(r"[1-9A-HJ-NP-Za-km-z]{32,44}", text)
@@ -250,7 +267,16 @@ class TradingBot:
         self.save_trades()
 
     async def send_telegram_message(self, message: str):
-        return
+        if not self.telegram_token or not self.notify_chat_ids:
+            return  # nincs megadva értesítési cím
+
+        url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
+        async with httpx.AsyncClient() as client:
+            for chat_id in self.notify_chat_ids:
+                try:
+                    await client.post(url, data={"chat_id": chat_id, "text": message})
+                except Exception as e:
+                    logging.error(f"Hiba az üzenetküldéskor ({chat_id}): {e}")
 
     async def poll_telegram(self):
         offset = None
