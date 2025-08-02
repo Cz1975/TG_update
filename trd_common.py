@@ -225,6 +225,7 @@ class TradingBot:
                   f"✅ Eladás sikeres\n"
                   f"Token: {token_address}\n"
                   f"Eladott összeg: {amount / 1_000_000:.6f} token"
+                  f"Árfolyam: {price:.6f} USDC/token"
             )
             await self.send_telegram_message(msg)
         
