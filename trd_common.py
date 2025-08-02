@@ -221,8 +221,16 @@ class TradingBot:
             )
             response = self.jupiter.order_and_execute(order)
             logging.info(f"✅ Eladás sikeres: {response}")
+            msg = (
+                  f"✅ Eladás sikeres\n"
+                  f"Token: {token_address}\n"
+                  f"Eladott összeg: {amount / 1_000_000:.6f} token"
+            )
+            await self.send_telegram_message(msg)
+        
         except Exception as e:
             logging.error(f"[!] Eladási hiba: {e}")
+            await self.send_telegram_message(f"❌ Eladási hiba: {token_address} - {e}")
 
     async def check_sell_conditions(self):
         remaining_trades = []
