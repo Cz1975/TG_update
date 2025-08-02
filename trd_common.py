@@ -93,7 +93,7 @@ class TradingBot:
     def save_trades(self):
         try:
             with open(self.active_trades_file, "w") as f:
-                json.dump(self.active_trades, f)
+                json.dump(self.active_trades, f, indent=4)
         except Exception as e:
             logging.error(f"Nem sikerült menteni a pozíciókat: {e}")
 
