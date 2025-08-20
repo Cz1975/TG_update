@@ -266,6 +266,44 @@ class TradingBot:
                 trigger_price = bought_at * target
                 step_amount = int(total_amount * (percentage / 100))
                 
+                # --- DEBUG: logold ki az összes alapváltozót és a képleteket ---
+                logging.debug(
+                    "[TRIGGER_DBG] token=%s step=%d | bought_at=%.12f target=%.6f -> trigger_price=%.12f | total_amount=%d percentage=%.2f -> step_amount=%d",
+                    token, i, float(bought_at), float(target), float(trigger_price), int(total_amount), float(percentage), int(step_amount)
+                )
+
+                # Típusok (ha véletlenül string vagy None csúszik be)
+                logging.debug(
+                    "[TRIGGER_DBG] types | bought_at=%s target=%s percentage=%s total_amount=%s",
+                    type(bought_at).__name__, type(target).__name__, type(percentage).__name__, type(total_amount).__name__
+                )
+
+                # takingAmount képlete és eredménye
+                taking_amount = int(trigger_price * step_amount)
+                logging.debug(
+                    "[TRIGGER_DBG] taking_amount = int(trigger_price * step_amount) = int(%.12f * %d) = %d",
+                    float(trigger_price), int(step_amount), int(taking_amount)
+                )
+
+                # Védőkorlátok: ha bármelyik érték 0/negatív, ne küldjünk ki ordert, logoljuk miért
+                if bought_at is None or target is None:
+                    logging.error("[TRIGGER_DBG] Missing bought_at or target; skip token=%s step=%d", token, i)
+                    continue
+                if bought_at <= 0 or target <= 0:
+                    logging.error("[TRIGGER_DBG] Non-positive bought_at (%.12f) or target (%.6f); skip token=%s step=%d",
+                                  float(bought_at), float(target), token, i)
+                    continue
+                if step_amount <= 0:
+                    logging.error("[TRIGGER_DBG] step_amount <= 0 (%d); skip token=%s step=%d", int(step_amount), token, i)
+                    continue
+                if taking_amount <= 0:
+                    logging.error("[TRIGGER_DBG] taking_amount <= 0 (%d); trigger_price*step_amount nem pozitív; skip token=%s step=%d",
+                                  int(taking_amount), token, i)
+                    continue
+                # --- END DEBUG ---
+
+                
+                
                 try:
                     trigger_payload = {
                         "inputMint": token,
@@ -278,6 +316,9 @@ class TradingBot:
                         },
                         "computeUnitPrice": "auto"
                     }
+                    
+                    logging.debug("[TRIGGER_DBG] POST /createOrder payload:\n%s", json.dumps(trigger_payload, indent=2))
+
                     
                     async with httpx.AsyncClient() as client:
                         response = await client.post(
@@ -383,4 +424,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
