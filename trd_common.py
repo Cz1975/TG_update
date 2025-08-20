@@ -149,6 +149,7 @@ class TradingBot:
 
         if token_address in IGNORED_TOKENS:
             logging.info(f"⛔ Kihagyott token: {token_address} (USDC vagy SOL)")
+            await self.send_telegram_message(f"⛔ Kihagyott token: {token_address}")
             return
 
         if any(t["token"] == token_address for t in self.active_trades):
@@ -157,7 +158,7 @@ class TradingBot:
             return
         
     
-#        await asyncio.sleep(random.uniform(2, 5))
+#        await asyncio.sleep(random.uniform(1, 3))
 
         max_retries = 10
         for attempt in range(max_retries):
@@ -355,6 +356,23 @@ class TradingBot:
                             headers={"Content-Type": "application/json"},
                             json=trigger_payload
                         )
+                        
+                        
+                        try:
+                          response_json = response.json()
+                        except Exception as e:
+                            raw_body = await response.aread()
+                            logging.error(f"❌ createOrder válasz nem JSON ({e}): {raw_body.decode('utf-8', errors='ignore')}")
+                            await self.send_telegram_message(f"❌ createOrder nem JSON válasz: {e}")
+                            return
+ 
+                        # JSON kiírás teljes egészében
+                        logging.debug(f"[TRIGGER_DBG] createOrder válasz JSON:\n{json.dumps(response_json, indent=2)}")
+  
+                        # Ellenőrizzük, van-e benne transaction
+                        transaction_b64 = response_json.get("transaction")
+                        request_id = response_json.get("requestId")
+                          
                         
                         try:
                            response.raise_for_status()
