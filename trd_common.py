@@ -313,6 +313,9 @@ class TradingBot:
 
                             logging.error(msg)
                             await self.send_telegram_message(msg)
+                except Exception as e:
+                    logging.error(f"⚠️ Trigger order külső hiba ({token}): {e}")
+                    await self.send_telegram_message(f"⚠️ Trigger külső hiba ({token}): {e}")
             
             trade["steps_executed"] = steps_executed
             if len(steps_executed) != len(strategy_steps):
