@@ -16,6 +16,7 @@ from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
 from solders.message import VersionedMessage
 from solders.transaction import VersionedTransaction
+from solders.signature import Signature
 
 from jup_python_sdk.clients.ultra_api_client import UltraApiClient
 from jup_python_sdk.models.ultra_api.ultra_order_request_model import UltraOrderRequest
@@ -255,10 +256,12 @@ class TradingBot:
 
             # Lekérjük az aktuális árfolyamot
             price = await self.fetch_token_price(token_address)
+            token_decimals = await self.get_token_decimals(token_address)
+            adjusted_amount = amount / (10 ** token_decimals)
             msg = (
                   f"✅ Eladás sikeres\n"
                   f"Token: {token_address}\n"
-                  f"Eladott összeg: {amount / 1_000_000:.12f} token\n"
+                  f"Eladott összeg: {adjusted_amount:.12f} token\n"
                   f"Árfolyam: {price:.12f} USDC/token"
             )
             await self.send_telegram_message(msg)
@@ -332,116 +335,136 @@ class TradingBot:
                     continue
                 # --- END DEBUG ---
 
+                max_trigger_attempts = 10
+                trigger_attempts = 0
+
+                while trigger_attempts < max_trigger_attempts:
+                    trigger_attempts += 1
                 
-                
-                try:
-                    trigger_payload = {
-                        "inputMint": token,
-                        "outputMint": self.USDC_MINT,
-                        "maker": str(self.keypair.pubkey()),
-                        "payer": str(self.keypair.pubkey()),
-                        "params": {
-                            "makingAmount": str(step_amount),  # pl. 1_000_000
-                            "takingAmount": str(int(trigger_price * step_amount))  # elérni kívánt USDC mennyiség
-                        },
-                        "computeUnitPrice": "auto"
-                    }
-                    
-                    logging.debug("[TRIGGER_DBG] POST /createOrder payload:\n%s", json.dumps(trigger_payload, indent=2))
-
-                    
-                    async with httpx.AsyncClient() as client:
-                        response = await client.post(
-                            "https://lite-api.jup.ag/trigger/v1/createOrder",
-                            headers={"Content-Type": "application/json"},
-                            json=trigger_payload
-                        )
+                    try:
+                        trigger_payload = {
+                            "inputMint": token,
+                            "outputMint": self.USDC_MINT,
+                            "maker": str(self.keypair.pubkey()),
+                            "payer": str(self.keypair.pubkey()),
+                            "params": {
+                                "makingAmount": str(step_amount),  # pl. 1_000_000
+                                "takingAmount": str(int(trigger_price * step_amount))  # elérni kívánt USDC mennyiség
+                            },
+                            "computeUnitPrice": "auto"
+                        }
                         
+                        logging.debug("[TRIGGER_DBG] POST /createOrder payload:\n%s", json.dumps(trigger_payload, indent=2))
+
                         
-                        try:
-                          response_json = response.json()
-                        except Exception as e:
-                            raw_body = await response.aread()
-                            logging.error(f"❌ createOrder válasz nem JSON ({e}): {raw_body.decode('utf-8', errors='ignore')}")
-                            await self.send_telegram_message(f"❌ createOrder nem JSON válasz: {e}")
-                            return
- 
-                        # JSON kiírás teljes egészében
-                        logging.debug(f"[TRIGGER_DBG] createOrder válasz JSON:\n{json.dumps(response_json, indent=2)}")
-  
-                        # Ellenőrizzük, van-e benne transaction
-                        transaction_b64 = response_json.get("transaction")
-                        request_id = response_json.get("requestId")
-                          
-                        
-                        try:
-                           response.raise_for_status()
-                           resp_json = response.json()
-                           request_id = resp_json.get("requestId")
-                           if request_id:
-                               transaction_base64 = resp_json.get("transaction")
-                               if not transaction_base64:
-                                   logging.error("❌ Nincs transaction a createOrder válaszban: %s", resp_json)
-                                   await self.send_telegram_message(f"❌ Nincs transaction a trigger válaszban: {request_id}")
-                                   continue
-
-
-                               try:
-                                   # Deszerializálás és aláírás
-                                   tx_bytes = base64.b64decode(transaction_base64)
-                                   versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
-                                   
-                                   #versioned_tx = VersionedTransaction(msg, [self.keypair])
-                                   versioned_tx.sign([self.keypair])
-                                   signed_tx_base64 = base64.b64encode(versioned_tx.serialize()).decode("utf-8")
-
-
-                                   async with httpx.AsyncClient() as client:
-                                       exec_response = await client.post(
-                                           "https://lite-api.jup.ag/trigger/v1/execute",
-                                           headers={"Content-Type": "application/json"},
-                                           json={
-                                               "signedTransaction": signed_tx_base64,
-                                               "requestId": request_id
-                                           }
-                                       )
-                                       exec_response.raise_for_status()
-                                       logging.info(f"✅ Trigger order elküldve és aláírva: {request_id}")
-                               except Exception as e:
-                                   logging.error(f"❌ Hiba a tranzakció aláírásánál vagy elküldésénél ({request_id}): {e}")
-                                   await self.send_telegram_message(f"❌ Aláírási vagy execute hiba: {request_id}")
-                                   continue
-                             
+                        async with httpx.AsyncClient() as client:
+                            response = await client.post(
+                                "https://lite-api.jup.ag/trigger/v1/createOrder",
+                                headers={"Content-Type": "application/json"},
+                                json=trigger_payload
+                            )
                             
-                          
-                           logging.debug(f"Trigger order válasz: {resp_json}")
-
-                           msg = (
-                               f"⏳ Trigger order elküldve\n"
-                               f"Token: {token}\n"
-                               f"Eladási ár: {trigger_price:.12f} USDC/token\n"
-                               f"Mennyiség: {step_amount / 1_000_000:.12f} token"
-                           )
-                           logging.info(msg)
-                           await self.send_telegram_message(msg)
-                              
-                           steps_executed.append(i)
-                    
-                        except httpx.HTTPStatusError as e:
+                            
                             try:
-                               error_json = response.json()
-                               error_msg = error_json.get("error", "Ismeretlen hiba")
-                               cause = error_json.get("cause", "Ismeretlen ok")
-                               msg = f"❌ Trigger order hiba ({token}): {error_msg} – {cause}"
-                            except Exception:
-                                msg = f"❌ Trigger order HTTP hiba ({token}): {str(e)}"
+                              response_json = response.json()
+                            except Exception as e:
+                                raw_body = await response.aread()
+                                logging.error(f"❌ createOrder válasz nem JSON ({e}): {raw_body.decode('utf-8', errors='ignore')}")
+                                await self.send_telegram_message(f"❌ createOrder nem JSON válasz: {e}")
+                                return
+     
+                            # JSON kiírás teljes egészében
+                            logging.debug(f"[TRIGGER_DBG] createOrder válasz JSON:\n{json.dumps(response_json, indent=2)}")
+      
+                            # Ellenőrizzük, van-e benne transaction
+                            transaction_b64 = response_json.get("transaction")
+                            request_id = response_json.get("requestId")
+                              
+                            
+                            try:
+                               response.raise_for_status()
+                               request_id = response_json.get("requestId")
+                               if request_id:
+                                   transaction_base64 = response_json.get("transaction")
+                                   if not transaction_base64:
+                                       logging.error("❌ Nincs transaction a createOrder válaszban: %s", resp_json)
+                                       await self.send_telegram_message(f"❌ Nincs transaction a trigger válaszban: {request_id}")
+                                       continue
 
-                            logging.error(msg)
-                            await self.send_telegram_message(msg)
-                except Exception as e:
-                    logging.error(f"⚠️ Trigger order külső hiba ({token}): {e}")
-                    await self.send_telegram_message(f"⚠️ Trigger külső hiba ({token}): {e}")
-            
+
+                                   try:
+                                       # Deszerializálás és aláírás
+                                       tx_base64 = transaction_base64
+                                       tx_bytes = base64.b64decode(tx_base64)
+                                       versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
+                                       
+                                       signature = self.keypair.sign_message(versioned_tx.message.serialize())
+                                       #versioned_tx = VersionedTransaction(msg, [self.keypair])
+                                       #versioned_tx.sign([self.keypair])
+                                       #signed_tx_base64 = base64.b64encode(versioned_tx.serialize()).decode("utf-8")
+                                       #signed_tx = VersionedTransaction(versioned_tx.message, [self.keypair.sign_message(versioned_tx.message.serialize())])
+                                       signed_tx = VersionedTransaction(versioned_tx.message, [signature])
+                                       signed_tx_base64 = base64.b64encode(signed_tx.serialize()).decode("utf-8")
+
+
+                                       async with httpx.AsyncClient() as client:
+                                           exec_response = await client.post(
+                                               "https://lite-api.jup.ag/trigger/v1/execute",
+                                               headers={"Content-Type": "application/json"},
+                                               json={
+                                                   "signedTransaction": signed_tx_base64,
+                                                   "requestId": request_id
+                                               }
+                                           )
+                                           exec_response.raise_for_status()
+                                           logging.info(f"✅ Trigger order elküldve és aláírva: {request_id}")
+                                           break
+                                        
+                                   except Exception as e:
+                                       logging.error(f"❌ Hiba a tranzakció aláírásánál vagy elküldésénél ({request_id}): {e}")
+                                       await self.send_telegram_message(f"❌ Aláírási vagy execute hiba: {request_id}")
+                                       continue
+                                 
+                                
+                              
+                               logging.debug(f"Trigger order válasz: {resp_json}")
+
+                               msg = (
+                                   f"⏳ Trigger order elküldve\n"
+                                   f"Token: {token}\n"
+                                   f"Eladási ár: {trigger_price:.12f} USDC/token\n"
+                                   f"Mennyiség: {step_amount / 1_000_000:.12f} token"
+                               )
+                               logging.info(msg)
+                               await self.send_telegram_message(msg)
+                                  
+                               steps_executed.append(i)
+                        
+                            except httpx.HTTPStatusError as e:
+                                try:
+                                   error_json = response.json()
+                                   error_msg = error_json.get("error", "Ismeretlen hiba")
+                                   cause = error_json.get("cause", "Ismeretlen ok")
+                                   msg = f"❌ Trigger order hiba ({token}): {error_msg} – {cause}"
+                                except Exception:
+                                    msg = f"❌ Trigger order HTTP hiba ({token}): {str(e)}"
+
+                                logging.error(msg)
+                                await self.send_telegram_message(msg)
+                    except Exception as e:
+                        logging.error(f"⚠️ Trigger order külső hiba ({token}): {e}")
+                        await self.send_telegram_message(f"⚠️ Trigger külső hiba ({token}): {e}")
+                    
+                    except Exception as e:
+                        logging.error(f"⚠️ Trigger attempt {trigger_attempts}/{max_trigger_attempts} hiba: {e}")
+                        await self.send_telegram_message(
+                            f"⚠️ Trigger attempt {trigger_attempts}/{max_trigger_attempts} sikertelen {token} step={i}: {e}"
+                        )
+                        if trigger_attempts >= max_trigger_attempts:
+                            logging.error(f"❌ Max. trigger próbálkozás elérve a step-re: token={token}, step={i}")
+                        await asyncio.sleep(1)  # opcionális várakozás
+                
+                
             trade["steps_executed"] = steps_executed
             if len(steps_executed) != len(strategy_steps):
                 remaining_trades.append(trade)
@@ -492,3 +515,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
