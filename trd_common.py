@@ -14,6 +14,7 @@ from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
+from solders.message import VersionedMessage
 from solders.transaction import VersionedTransaction
 
 from jup_python_sdk.clients.ultra_api_client import UltraApiClient
@@ -343,7 +344,9 @@ class TradingBot:
                                try:
                                    # Deszerializálás és aláírás
                                    tx_bytes = base64.b64decode(transaction_base64)
-                                   versioned_tx = VersionedTransaction.deserialize(tx_bytes)
+                                   msg = VersionedMessage.deserialize(tx_bytes)
+                                   #versioned_tx = VersionedTransaction.deserialize(tx_bytes)
+                                   versioned_tx = VersionedTransaction(msg, [self.keypair])
                                    versioned_tx.sign([self.keypair])
                                    signed_tx_base64 = base64.b64encode(versioned_tx.serialize()).decode("utf-8")
 
@@ -444,3 +447,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
