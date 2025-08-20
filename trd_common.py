@@ -14,6 +14,7 @@ from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
+from solana.transaction import VersionedTransaction
 
 from jup_python_sdk.clients.ultra_api_client import UltraApiClient
 from jup_python_sdk.models.ultra_api.ultra_order_request_model import UltraOrderRequest
@@ -332,19 +333,38 @@ class TradingBot:
                            resp_json = response.json()
                            request_id = resp_json.get("requestId")
                            if request_id:
-                               execute_url = "https://lite-api.jup.ag/trigger/v1/execute"
+                               transaction_base64 = resp_json.get("transaction")
+                               if not transaction_base64:
+                                   logging.error("❌ Nincs transaction a createOrder válaszban: %s", resp_json)
+                                   await self.send_telegram_message(f"❌ Nincs transaction a trigger válaszban: {request_id}")
+                                   continue
+
+
                                try:
+                                   # Deszerializálás és aláírás
+                                   tx_bytes = base64.b64decode(transaction_base64)
+                                   versioned_tx = VersionedTransaction.deserialize(tx_bytes)
+                                   versioned_tx.sign([self.keypair])
+                                   signed_tx_base64 = base64.b64encode(versioned_tx.serialize()).decode("utf-8")
+
+
                                    async with httpx.AsyncClient() as client:
                                        exec_response = await client.post(
-                                           execute_url,
+                                           "https://lite-api.jup.ag/trigger/v1/execute",
                                            headers={"Content-Type": "application/json"},
-                                           json={"requestId": request_id}
+                                           json={
+                                               "signedTransaction": signed_tx_base64,
+                                               "requestId": request_id
+                                           }
                                        )
                                        exec_response.raise_for_status()
-                                       logging.info(f"✅ Trigger order aktiválva: {request_id}")
-                               except Exception as e:
-                                   logging.error(f"❌ Hiba a trigger order aktiválásánál ({request_id}): {e}")
-                                   await self.send_telegram_message(f"❌ Nem sikerült aktiválni a trigger ordert: {request_id}")
+                                       logging.info(f"✅ Trigger order elküldve és aláírva: {request_id}")
+                                except Exception as e:
+                                    logging.error(f"❌ Hiba a tranzakció aláírásánál vagy elküldésénél ({request_id}): {e}")
+                                    await self.send_telegram_message(f"❌ Aláírási vagy execute hiba: {request_id}")
+                                    continue
+                             
+                            
                           
                            logging.debug(f"Trigger order válasz: {resp_json}")
 
@@ -424,5 +444,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
