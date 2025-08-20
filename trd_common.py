@@ -186,8 +186,8 @@ class TradingBot:
                 msg = (
                     f"✅ Vásárlás sikeres\n"
                     f"Token: {token_address}\n"
-                    f"Összeg: {output_amount / 1_000_000:.6f} token\n"
-                    f"Árfolyam: {bought_at:.6f} USDC/token"
+                    f"Összeg: {output_amount / 1_000_000:.12f} token\n"
+                    f"Árfolyam: {bought_at:.12f} USDC/token"
                 )
                 logging.info(msg)
                 await self.send_telegram_message(msg)
@@ -228,8 +228,8 @@ class TradingBot:
             msg = (
                   f"✅ Eladás sikeres\n"
                   f"Token: {token_address}\n"
-                  f"Eladott összeg: {amount / 1_000_000:.6f} token\n"
-                  f"Árfolyam: {price:.6f} USDC/token"
+                  f"Eladott összeg: {amount / 1_000_000:.12f} token\n"
+                  f"Árfolyam: {price:.12f} USDC/token"
             )
             await self.send_telegram_message(msg)
         
@@ -289,13 +289,29 @@ class TradingBot:
                         try:
                            response.raise_for_status()
                            resp_json = response.json()
+                           request_id = resp_json.get("requestId")
+                           if request_id:
+                               execute_url = "https://lite-api.jup.ag/trigger/v1/execute"
+                               try:
+                                   async with httpx.AsyncClient() as client:
+                                       exec_response = await client.post(
+                                           execute_url,
+                                           headers={"Content-Type": "application/json"},
+                                           json={"requestId": request_id}
+                                       )
+                                       exec_response.raise_for_status()
+                                       logging.info(f"✅ Trigger order aktiválva: {request_id}")
+                               except Exception as e:
+                                   logging.error(f"❌ Hiba a trigger order aktiválásánál ({request_id}): {e}")
+                                   await self.send_telegram_message(f"❌ Nem sikerült aktiválni a trigger ordert: {request_id}")
+                          
                            logging.debug(f"Trigger order válasz: {resp_json}")
 
                            msg = (
                                f"⏳ Trigger order elküldve\n"
                                f"Token: {token}\n"
-                               f"Eladási ár: {trigger_price:.6f} USDC/token\n"
-                               f"Mennyiség: {step_amount / 1_000_000:.6f} token"
+                               f"Eladási ár: {trigger_price:.12f} USDC/token\n"
+                               f"Mennyiség: {step_amount / 1_000_000:.12f} token"
                            )
                            logging.info(msg)
                            await self.send_telegram_message(msg)
