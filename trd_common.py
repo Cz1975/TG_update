@@ -285,27 +285,37 @@ class TradingBot:
                             headers={"Content-Type": "application/json"},
                             json=trigger_payload
                         )
-                        response.raise_for_status()
-                        resp_json = response.json()
-                        logging.debug(f"Trigger order válasz: {resp_json}")
+                        
+                        try:
+                           response.raise_for_status()
+                           resp_json = response.json()
+                           logging.debug(f"Trigger order válasz: {resp_json}")
 
-                    msg = (
-                        f"⏳ Trigger order elküldve\n"
-                        f"Token: {token}\n"
-                        f"Eladási ár: {trigger_price:.6f} USDC/token\n"
-                        f"Mennyiség: {step_amount / 1_000_000:.6f} token"
-                    )
-                    logging.info(msg)
-                    await self.send_telegram_message(msg)
+                           msg = (
+                               f"⏳ Trigger order elküldve\n"
+                               f"Token: {token}\n"
+                               f"Eladási ár: {trigger_price:.6f} USDC/token\n"
+                               f"Mennyiség: {step_amount / 1_000_000:.6f} token"
+                           )
+                           logging.info(msg)
+                           await self.send_telegram_message(msg)
                               
-                    steps_executed.append(i)
+                           steps_executed.append(i)
                     
-                except Exception as e:
-                    logging.error(f"Trigger order hiba ({token}): {e}")
-                    await self.send_telegram_message(f"❌ Trigger order hiba ({token}): {e}")             
+                        except httpx.HTTPStatusError as e:
+                            try:
+                               error_json = response.json()
+                               error_msg = error_json.get("error", "Ismeretlen hiba")
+                               cause = error_json.get("cause", "Ismeretlen ok")
+                               msg = f"❌ Trigger order hiba ({token}): {error_msg} – {cause}"
+                            except Exception:
+                                msg = f"❌ Trigger order HTTP hiba ({token}): {str(e)}"
 
+                            logging.error(msg)
+                            await self.send_telegram_message(msg)
+            
+            trade["steps_executed"] = steps_executed
             if len(steps_executed) != len(strategy_steps):
-                trade["steps_executed"] = steps_executed
                 remaining_trades.append(trade)
 
         self.active_trades = remaining_trades
