@@ -389,9 +389,9 @@ class TradingBot:
                                try:
                                    # Deszerializálás és aláírás
                                    tx_bytes = base64.b64decode(transaction_base64)
-                                   msg = VersionedMessage.deserialize(tx_bytes)
-                                   #versioned_tx = VersionedTransaction.deserialize(tx_bytes)
-                                   versioned_tx = VersionedTransaction(msg, [self.keypair])
+                                   versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
+                                   
+                                   #versioned_tx = VersionedTransaction(msg, [self.keypair])
                                    versioned_tx.sign([self.keypair])
                                    signed_tx_base64 = base64.b64encode(versioned_tx.serialize()).decode("utf-8")
 
