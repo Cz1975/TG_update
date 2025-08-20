@@ -145,16 +145,8 @@ class TradingBot:
             logging.warning(f"⚠️ Már létezik pozíció ezzel a tokennel: {token_address}")
             await self.send_telegram_message(f"⚠️ Már nyitott pozíció van: {token_address}")
             return
-    async def get_token_decimals(self, mint: str) -> int:
-        try:
-            pubkey = Pubkey.from_string(mint)
-            resp = await self.client.get_token_supply(pubkey)
-            if resp.value and resp.value.decimals is not None:
-                return resp.value.decimals
-        except Exception as e:
-            logging.error(f"[!] Hiba a decimális lekérdezésénél: {e}")
-        return 6  # alapértelmezett fallback
-
+        
+    
 #        await asyncio.sleep(random.uniform(2, 5))
 
         max_retries = 10
@@ -217,6 +209,18 @@ class TradingBot:
     def extract_token_addresses(self, text: str) -> List[str]:
         return re.findall(r"[1-9A-HJ-NP-Za-km-z]{32,44}", text)
 
+    async def get_token_decimals(self, mint: str) -> int:
+        try:
+            pubkey = Pubkey.from_string(mint)
+            resp = await self.client.get_token_supply(pubkey)
+            if resp.value and resp.value.decimals is not None:
+                return resp.value.decimals
+        except Exception as e:
+            logging.error(f"[!] Hiba a decimális lekérdezésénél: {e}")
+        return 6  # alapértelmezett fallback
+
+      
+    
     async def handle_message(self, update: dict):
         message = update.get("message", {}).get("text")
         if message:
