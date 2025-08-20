@@ -175,7 +175,10 @@ class TradingBot:
                     continue  # újrapróbálkozás
                 # Vásárlás sikeres
                 #bought_at = await self.fetch_token_price(token_address)
-                bought_at = (amount / 1_000_000) / (output_amount / 1_000_000)  # Valós árfolyam: USDC/token
+                token_decimals = await self.get_token_decimals(token_address)
+                adjusted_amount = output_amount / (10 ** token_decimals)
+                bought_at = (amount / 10**6) / (output_amount / 10**token_decimals)
+                #bought_at = (amount / 1_000_000) / (output_amount / 1_000_000)  # Valós árfolyam: USDC/token
                 self.active_trades.append({
                     "token": token_address,
                     "bought_at": bought_at,
@@ -185,12 +188,15 @@ class TradingBot:
                 })
                 self.save_trades()
                 
+                decimals = await self.get_token_decimals(token_address)
+                adjusted_amount = output_amount / (10 ** decimals)
+
                 msg = (
                     f"✅ Vásárlás sikeres\n"
                     f"Token: {token_address}\n"
-                    f"Összeg: {output_amount / 1_000_000:.12f} token\n"
+                    f"Összeg: {adjusted_amount:.12f} token\n"
                     f"Árfolyam: {bought_at:.12f} USDC/token"
-                )
+                
                 logging.info(msg)
                 await self.send_telegram_message(msg)
                 
@@ -447,6 +453,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
