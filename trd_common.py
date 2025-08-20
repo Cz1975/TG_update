@@ -140,6 +140,16 @@ class TradingBot:
             logging.warning(f"🚫 Nem érvényes token cím: {token_address}")
             await self.send_telegram_message(f"🚫 Nem érvényes token cím: {token_address}")
             return
+           
+        # ⛔ Szűrés: USDC és SOL tokeneket ne próbáljuk megvenni
+        IGNORED_TOKENS = {
+            "So11111111111111111111111111111111111111112",  # SOL
+            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # USDC
+        }
+
+        if token_address in IGNORED_TOKENS:
+            logging.info(f"⛔ Kihagyott token: {token_address} (USDC vagy SOL)")
+            return
 
         if any(t["token"] == token_address for t in self.active_trades):
             logging.warning(f"⚠️ Már létezik pozíció ezzel a tokennel: {token_address}")
