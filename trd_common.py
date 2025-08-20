@@ -268,12 +268,15 @@ class TradingBot:
                 
                 try:
                     trigger_payload = {
-                        "user": str(self.keypair.pubkey()),
                         "inputMint": token,
                         "outputMint": self.USDC_MINT,
-                        "amount": str(step_amount),
-                        "triggerCondition": ">",
-                        "triggerPrice": str(trigger_price)
+                        "maker": str(self.keypair.pubkey()),
+                        "payer": str(self.keypair.pubkey()),
+                        "params": {
+                            "makingAmount": str(step_amount),  # pl. 1_000_000
+                            "takingAmount": str(int(trigger_price * step_amount))  # elérni kívánt USDC mennyiség
+                        },
+                        "computeUnitPrice": "auto"
                     }
                     
                     async with httpx.AsyncClient() as client:
