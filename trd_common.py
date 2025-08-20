@@ -359,10 +359,10 @@ class TradingBot:
                                        )
                                        exec_response.raise_for_status()
                                        logging.info(f"✅ Trigger order elküldve és aláírva: {request_id}")
-                                except Exception as e:
-                                    logging.error(f"❌ Hiba a tranzakció aláírásánál vagy elküldésénél ({request_id}): {e}")
-                                    await self.send_telegram_message(f"❌ Aláírási vagy execute hiba: {request_id}")
-                                    continue
+                               except Exception as e:
+                                   logging.error(f"❌ Hiba a tranzakció aláírásánál vagy elküldésénél ({request_id}): {e}")
+                                   await self.send_telegram_message(f"❌ Aláírási vagy execute hiba: {request_id}")
+                                   continue
                              
                             
                           
