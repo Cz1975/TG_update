@@ -144,7 +144,7 @@ class TradingBot:
             await self.send_telegram_message(f"⚠️ Már nyitott pozíció van: {token_address}")
             return
 
-        await asyncio.sleep(random.uniform(2, 5))
+#        await asyncio.sleep(random.uniform(2, 5))
 
         max_retries = 10
         for attempt in range(max_retries):
@@ -172,7 +172,8 @@ class TradingBot:
                     await self.send_telegram_message(msg)
                     continue  # újrapróbálkozás
                 # Vásárlás sikeres
-                bought_at = await self.fetch_token_price(token_address)
+                #bought_at = await self.fetch_token_price(token_address)
+                bought_at = (amount / 1_000_000) / (output_amount / 1_000_000)  # Valós árfolyam: USDC/token
                 self.active_trades.append({
                     "token": token_address,
                     "bought_at": bought_at,
@@ -241,7 +242,7 @@ class TradingBot:
         for trade in self.active_trades:
             token = trade["token"]
             strategy_steps = trade["strategy"]
-            current_price = await self.fetch_token_price(token)
+            #current_price = await self.fetch_token_price(token)
             bought_at = trade["bought_at"]
             total_amount = trade["amount"]
             steps_executed = trade.get("steps_executed", [])
@@ -250,9 +251,9 @@ class TradingBot:
                 remaining_trades.append(trade)
                 continue
 
-            profit_ratio = current_price / bought_at
+            #profit_ratio = current_price / bought_at
 
-            logging.debug(f"[CHECK] Token: {token}, Current: {current_price}, Bought at: {bought_at}, Profit: {profit_ratio:.4f}")
+            #logging.debug(f"[CHECK] Token: {token}, Current: {current_price}, Bought at: {bought_at}, Profit: {profit_ratio:.4f}")
 
             for i, step in enumerate(strategy_steps):
                 if i in steps_executed:
@@ -262,19 +263,43 @@ class TradingBot:
                 stop_loss = step.get("stop_loss", None)
                 percentage = step.get("percentage", 100)
 
+                trigger_price = bought_at * target
                 step_amount = int(total_amount * (percentage / 100))
+                
+                try:
+                    trigger_payload = {
+                        "user": str(self.keypair.pubkey()),
+                        "inputMint": token,
+                        "outputMint": self.USDC_MINT,
+                        "amount": str(step_amount),
+                        "triggerCondition": ">",
+                        "triggerPrice": str(trigger_price)
+                    }
+                    
+                    async with httpx.AsyncClient() as client:
+                        response = await client.post(
+                            "https://quote-api.jup.ag/v6/trigger-order",
+                            headers={"Content-Type": "application/json"},
+                            json=trigger_payload
+                        )
+                        response.raise_for_status()
+                        resp_json = response.json()
+                        logging.debug(f"Trigger order válasz: {resp_json}")
 
-                logging.debug(f"[STRATEGY] Step {i}: Target={target}, Stop={stop_loss}, Amount={step_amount}, Already executed={i in steps_executed}")
-
-                if profit_ratio >= target:
-                    logging.info(f"🎯 Cél elérés, eladás: {token}, lépés: {i}")
-                    await self.execute_sell(token, step_amount)
+                    msg = (
+                        f"⏳ Trigger order elküldve\n"
+                        f"Token: {token}\n"
+                        f"Eladási ár: {trigger_price:.6f} USDC/token\n"
+                        f"Mennyiség: {step_amount / 1_000_000:.6f} token"
+                    )
+                    logging.info(msg)
+                    await self.send_telegram_message(msg)
+                              
                     steps_executed.append(i)
-
-                elif stop_loss and profit_ratio <= stop_loss:
-                    logging.info(f"🔻 Stop-loss trigger, eladás: {token}, lépés: {i}")
-                    await self.execute_sell(token, step_amount)
-                    steps_executed.append(i)
+                    
+                except Exception as e:
+                    logging.error(f"Trigger order hiba ({token}): {e}")
+                    await self.send_telegram_message(f"❌ Trigger order hiba ({token}): {e}")             
 
             if len(steps_executed) != len(strategy_steps):
                 trade["steps_executed"] = steps_executed
@@ -326,3 +351,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
