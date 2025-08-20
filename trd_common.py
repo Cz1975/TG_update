@@ -145,6 +145,15 @@ class TradingBot:
             logging.warning(f"⚠️ Már létezik pozíció ezzel a tokennel: {token_address}")
             await self.send_telegram_message(f"⚠️ Már nyitott pozíció van: {token_address}")
             return
+    async def get_token_decimals(self, mint: str) -> int:
+        try:
+            pubkey = Pubkey.from_string(mint)
+            resp = await self.client.get_token_supply(pubkey)
+            if resp.value and resp.value.decimals is not None:
+                return resp.value.decimals
+        except Exception as e:
+            logging.error(f"[!] Hiba a decimális lekérdezésénél: {e}")
+        return 6  # alapértelmezett fallback
 
 #        await asyncio.sleep(random.uniform(2, 5))
 
@@ -188,15 +197,13 @@ class TradingBot:
                 })
                 self.save_trades()
                 
-                decimals = await self.get_token_decimals(token_address)
-                adjusted_amount = output_amount / (10 ** decimals)
-
+               
                 msg = (
                     f"✅ Vásárlás sikeres\n"
                     f"Token: {token_address}\n"
                     f"Összeg: {adjusted_amount:.12f} token\n"
                     f"Árfolyam: {bought_at:.12f} USDC/token"
-                
+                )
                 logging.info(msg)
                 await self.send_telegram_message(msg)
                 
@@ -453,7 +460,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
