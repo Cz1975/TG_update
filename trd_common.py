@@ -14,7 +14,7 @@ from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
-from solana.transaction_versioned import VersionedTransaction
+from solders.transaction import VersionedTransaction
 
 from jup_python_sdk.clients.ultra_api_client import UltraApiClient
 from jup_python_sdk.models.ultra_api.ultra_order_request_model import UltraOrderRequest
