@@ -278,7 +278,7 @@ class TradingBot:
                     
                     async with httpx.AsyncClient() as client:
                         response = await client.post(
-                            "https://quote-api.jup.ag/v6/trigger-order",
+                            "https://lite-api.jup.ag/trigger/v1/createOrder"
                             headers={"Content-Type": "application/json"},
                             json=trigger_payload
                         )
