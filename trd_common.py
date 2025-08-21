@@ -459,14 +459,14 @@ class TradingBot:
                         logging.error(f"⚠️ Trigger külső hiba ({token}): {e}")
                         await self.send_telegram_message(f"⚠️ Trigger külső hiba ({token}): {e}")
                         await asyncio.sleep(1)
-                     
-                     
-                        trade["steps_executed"] = steps_executed
-                        if len(steps_executed) != len(strategy_steps):
-                            remaining_trades.append(trade)
-
-                        self.active_trades = remaining_trades
-                        self.save_trades()
+                                          
+            trade["steps_executed"] = steps_executed
+            if len(steps_executed) != len(strategy_steps):
+                remaining_trades.append(trade)
+            else:
+                await self.send_telegram_message(f"✅ Minden eladási lépés teljesült, pozíció lezárva: {token}")
+        self.active_trades = remaining_trades
+        self.save_trades()
 
     async def send_telegram_message(self, message: str):
         if not self.telegram_token or not self.notify_chat_ids:
