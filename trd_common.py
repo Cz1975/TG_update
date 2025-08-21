@@ -393,36 +393,34 @@ class TradingBot:
 
 
                                    try:
-                                       # Deszerializálás és aláírás
-                                       tx_base64 = transaction_base64
-                                       tx_bytes = base64.b64decode(tx_base64)
-                                       versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
-                                       
-                                       signature = self.keypair.sign_message(versioned_tx.message.serialize())
-                                       #versioned_tx = VersionedTransaction(msg, [self.keypair])
-                                       #versioned_tx.sign([self.keypair])
-                                       #signed_tx_base64 = base64.b64encode(versioned_tx.serialize()).decode("utf-8")
-                                       #signed_tx = VersionedTransaction(versioned_tx.message, [self.keypair.sign_message(versioned_tx.message.serialize())])
-                                       signed_tx = VersionedTransaction(versioned_tx.message, [signature])
-                                       signed_tx_base64 = base64.b64encode(signed_tx.serialize()).decode("utf-8")
+                                        tx_bytes = base64.b64decode(transaction_base64)
+                                        versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
 
+                                        # Nem kell külön signature-t létrehozni, helyette új aláírt tranzakciót készítünk
+                                        signed_tx = VersionedTransaction(versioned_tx.message, [self.keypair])
+                                        signed_tx_b64 = base64.b64encode(bytes(signed_tx)).decode("utf-8")
 
-                                       async with httpx.AsyncClient() as client:
-                                           exec_response = await client.post(
-                                               "https://lite-api.jup.ag/trigger/v1/execute",
-                                               headers={"Content-Type": "application/json"},
-                                               json={
-                                                   "signedTransaction": signed_tx_base64,
-                                                   "requestId": request_id
-                                               }
-                                           )
-                                           exec_response.raise_for_status()
-                                           logging.info(f"✅ Trigger order elküldve és aláírva: {request_id}")
-                                           break
-                                        
-                                   except Exception as e:
-                                       logging.error(f"❌ Hiba a tranzakció aláírásánál vagy elküldésénél ({request_id}): {e}")
-                                       await self.send_telegram_message(f"❌ Aláírási vagy execute hiba: {request_id}")
+                                        # Execute trigger order
+                                        exec_payload = {
+                                            "signedTransaction": signed_tx_b64,
+                                            "requestId": request_id
+                                        }
+                                        exec_response = await client.post(
+                                            "https://lite-api.jup.ag/trigger/v1/execute",
+                                            headers={"Content-Type": "application/json"},
+                                            json=exec_payload
+                                        )
+                                        exec_response.raise_for_status()
+
+                                        logging.info(f"✅ Trigger order aláírva és végrehajtva: {request_id}")
+                                        await self.send_telegram_message(f"✅ Trigger order elküldve: {request_id}")
+                                        steps_executed.append(i)
+                                        break
+
+                                    except Exception as e:
+                                        logging.error(f"❌ Trigger aláírás vagy küldés hiba ({request_id}): {e}")
+                                        await self.send_telegram_message(f"❌ Aláírás vagy küldés hiba: {request_id}")
+ 
                                        continue
                                  
                                 
