@@ -366,7 +366,7 @@ class TradingBot:
                             
                             
                             try:
-                              response_json = response.json()
+                                response_json = response.json()
                             except Exception as e:
                                 raw_body = await response.aread()
                                 logging.error(f"❌ createOrder válasz nem JSON ({e}): {raw_body.decode('utf-8', errors='ignore')}")
@@ -382,17 +382,17 @@ class TradingBot:
                               
                             
                             try:
-                               response.raise_for_status()
-                               request_id = response_json.get("requestId")
-                               if request_id:
-                                   transaction_base64 = response_json.get("transaction")
-                                   if not transaction_base64:
-                                       logging.error("❌ Nincs transaction a createOrder válaszban: %s", resp_json)
-                                       await self.send_telegram_message(f"❌ Nincs transaction a trigger válaszban: {request_id}")
-                                       continue
+                                response.raise_for_status()
+                                request_id = response_json.get("requestId")
+                                if request_id:
+                                    transaction_base64 = response_json.get("transaction")
+                                    if not transaction_base64:
+                                        logging.error("❌ Nincs transaction a createOrder válaszban: %s", response_json)
+                                        await self.send_telegram_message(f"❌ Nincs transaction a trigger válaszban: {request_id}")
+                                        continue
 
 
-                                   try:
+                                    try:
                                         tx_bytes = base64.b64decode(transaction_base64)
                                         versioned_tx = VersionedTransaction.from_bytes(tx_bytes)
 
@@ -420,49 +420,42 @@ class TradingBot:
                                     except Exception as e:
                                         logging.error(f"❌ Trigger aláírás vagy küldés hiba ({request_id}): {e}")
                                         await self.send_telegram_message(f"❌ Aláírás vagy küldés hiba: {request_id}")
- 
-                                       continue
-                                 
-                                
-                              
-                               logging.debug(f"Trigger order válasz: {resp_json}")
+                                        continue
+                                                                                               
+                                logging.debug(f"Trigger order válasz: {response_json}")
 
-                               msg = (
+                                msg = (
                                    f"⏳ Trigger order elküldve\n"
                                    f"Token: {token}\n"
                                    f"Eladási ár: {trigger_price:.12f} USDC/token\n"
                                    f"Mennyiség: {step_amount / 1_000_000:.12f} token"
-                               )
-                               logging.info(msg)
-                               await self.send_telegram_message(msg)
+                                )
+                                logging.info(msg)
+                                await self.send_telegram_message(msg)
                                   
-                               steps_executed.append(i)
-                        
+                                steps_executed.append(i)
+                                                       
                             except httpx.HTTPStatusError as e:
                                 try:
-                                   error_json = response.json()
-                                   error_msg = error_json.get("error", "Ismeretlen hiba")
-                                   cause = error_json.get("cause", "Ismeretlen ok")
-                                   msg = f"❌ Trigger order hiba ({token}): {error_msg} – {cause}"
+                                    error_json = response.json()
+                                    error_msg = error_json.get("error", "Ismeretlen hiba")
+                                    cause = error_json.get("cause", "Ismeretlen ok")
+                                    msg = f"❌ Trigger order hiba ({token}): {error_msg} – {cause}"
                                 except Exception:
                                     msg = f"❌ Trigger order HTTP hiba ({token}): {str(e)}"
 
                                 logging.error(msg)
                                 await self.send_telegram_message(msg)
-                    except Exception as e:
-                        logging.error(f"⚠️ Trigger order külső hiba ({token}): {e}")
-                        await self.send_telegram_message(f"⚠️ Trigger külső hiba ({token}): {e}")
-                    
-                    except Exception as e:
-                        logging.error(f"⚠️ Trigger attempt {trigger_attempts}/{max_trigger_attempts} hiba: {e}")
-                        await self.send_telegram_message(
-                            f"⚠️ Trigger attempt {trigger_attempts}/{max_trigger_attempts} sikertelen {token} step={i}: {e}"
-                        )
-                        if trigger_attempts >= max_trigger_attempts:
-                            logging.error(f"❌ Max. trigger próbálkozás elérve a step-re: token={token}, step={i}")
-                        await asyncio.sleep(1)  # opcionális várakozás
-                
-                
+
+                            except Exception as e:
+                                logging.error(f"⚠️ Trigger attempt {trigger_attempts}/{max_trigger_attempts} hiba: {e}")
+                                await self.send_telegram_message(
+                                    f"⚠️ Trigger attempt {trigger_attempts}/{max_trigger_attempts} sikertelen {token} step={i}: {e}"
+                                )
+                                if trigger_attempts >= max_trigger_attempts:
+                                    logging.error(f"❌ Max. trigger próbálkozás elérve a step-re: token={token}, step={i}")
+                                await asyncio.sleep(1)  # opcionális várakozás
+                                            
             trade["steps_executed"] = steps_executed
             if len(steps_executed) != len(strategy_steps):
                 remaining_trades.append(trade)
@@ -513,4 +506,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
