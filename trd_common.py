@@ -432,7 +432,6 @@ class TradingBot:
                                 )
                                 logging.info(msg)
                                 await self.send_telegram_message(msg)
-                                  
                                 steps_executed.append(i)
                                                        
                             except httpx.HTTPStatusError as e:
@@ -455,13 +454,19 @@ class TradingBot:
                                 if trigger_attempts >= max_trigger_attempts:
                                     logging.error(f"❌ Max. trigger próbálkozás elérve a step-re: token={token}, step={i}")
                                 await asyncio.sleep(1)  # opcionális várakozás
-                                            
-            trade["steps_executed"] = steps_executed
-            if len(steps_executed) != len(strategy_steps):
-                remaining_trades.append(trade)
+                     
+                    except Exception as e:
+                        logging.error(f"⚠️ Trigger külső hiba ({token}): {e}")
+                        await self.send_telegram_message(f"⚠️ Trigger külső hiba ({token}): {e}")
+                        await asyncio.sleep(1)
+                     
+                     
+                        trade["steps_executed"] = steps_executed
+                        if len(steps_executed) != len(strategy_steps):
+                            remaining_trades.append(trade)
 
-        self.active_trades = remaining_trades
-        self.save_trades()
+                        self.active_trades = remaining_trades
+                        self.save_trades()
 
     async def send_telegram_message(self, message: str):
         if not self.telegram_token or not self.notify_chat_ids:
@@ -506,5 +511,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
