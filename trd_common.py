@@ -297,7 +297,10 @@ class TradingBot:
                 percentage = step.get("percentage", 100)
 
                 trigger_price = bought_at * target
-                step_amount = int(total_amount * (percentage / 100))
+                token_decimals = await self.get_token_decimals(token)
+                real_total_amount = total_amount / (10 ** token_decimals)
+                step_amount_real = real_total_amount * (percentage / 100)
+                step_amount = int(step_amount_real * (10 ** token_decimals))
                 
                 # --- DEBUG: logold ki az összes alapváltozót és a képleteket ---
                 logging.debug(
