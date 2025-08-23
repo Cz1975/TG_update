@@ -189,8 +189,9 @@ class TradingBot:
                     continue  # újrapróbálkozás
                 # Vásárlás sikeres
                 #bought_at = await self.fetch_token_price(token_address)
-                adjusted_amount = output_amount
-                bought_at = (amount*1000000) / output_amount
+                token_decimals = await self.get_token_decimals(token_address)
+                adjusted_amount = output_amount / (10 ** token_decimals)
+                bought_at = amount / adjusted_amount
                 #bought_at = (amount / 1_000_000) / (output_amount / 1_000_000)  # Valós árfolyam: USDC/token
                 self.active_trades.append({
                     "token": token_address,
@@ -205,7 +206,7 @@ class TradingBot:
                 msg = (
                     f"✅ Vásárlás sikeres\n"
                     f"Token: {token_address}\n"
-                    f"Összeg: {amount:.12f} token\n"
+                    f"Összeg: {token_amount:.12f} token\n"
                     f"Árfolyam: {bought_at:.12f} USDC/token"
                 )
                 logging.info(msg)
