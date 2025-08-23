@@ -164,13 +164,14 @@ class TradingBot:
         max_retries = 10
         for attempt in range(max_retries):
             try:
-                amount = int(float(self.strategy.get("buy_amount_usdc", 1)) * 1_000_000)
+                amount = float(self.strategy.get("buy_amount_usdc", 1))
                 slippage = float(self.strategy.get("slippage", 0.5))
-
+                raw_amount = int(amount * 1_000_000)
+                
                 order = UltraOrderRequest(
                     input_mint=self.USDC_MINT,
                     output_mint=token_address,
-                    amount=amount,
+                    amount=raw_amount,
                     taker=str(self.keypair.pubkey()),
                     slippage_bps=int(slippage * 100)
                 )
@@ -189,8 +190,8 @@ class TradingBot:
                 # Vásárlás sikeres
                 #bought_at = await self.fetch_token_price(token_address)
                 token_decimals = await self.get_token_decimals(token_address)
-                adjusted_amount = output_amount / (10 ** token_decimals)
-                bought_at = (amount / 10**6) / (output_amount / 10**token_decimals)
+                adjusted_amount = output_amount
+                bought_at = amount / output_amount
                 #bought_at = (amount / 1_000_000) / (output_amount / 1_000_000)  # Valós árfolyam: USDC/token
                 self.active_trades.append({
                     "token": token_address,
@@ -205,7 +206,7 @@ class TradingBot:
                 msg = (
                     f"✅ Vásárlás sikeres\n"
                     f"Token: {token_address}\n"
-                    f"Összeg: {adjusted_amount:.12f} token\n"
+                    f"Összeg: {amount:.12f} token\n"
                     f"Árfolyam: {bought_at:.12f} USDC/token"
                 )
                 logging.info(msg)
@@ -297,10 +298,8 @@ class TradingBot:
                 percentage = step.get("percentage", 100)
 
                 trigger_price = bought_at * target
-                token_decimals = await self.get_token_decimals(token)
-                real_total_amount = total_amount / (10 ** token_decimals)
-                step_amount_real = real_total_amount * (percentage / 100)
-                step_amount = int(step_amount_real * (10 ** token_decimals))
+                
+                step_amount = int(total_amount * (percentage / 100))
                 
                 # --- DEBUG: logold ki az összes alapváltozót és a képleteket ---
                 logging.debug(
