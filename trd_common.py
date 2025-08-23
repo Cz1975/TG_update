@@ -159,7 +159,7 @@ class TradingBot:
             return
         
     
-#        await asyncio.sleep(random.uniform(1, 3))
+        await asyncio.sleep(random.uniform(1, 3))
 
         max_retries = 10
         for attempt in range(max_retries):
