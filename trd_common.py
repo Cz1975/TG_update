@@ -191,7 +191,7 @@ class TradingBot:
                 #bought_at = await self.fetch_token_price(token_address)
                 token_decimals = await self.get_token_decimals(token_address)
                 adjusted_amount = output_amount
-                bought_at = amount / output_amount
+                bought_at = (amount*1000000) / output_amount
                 #bought_at = (amount / 1_000_000) / (output_amount / 1_000_000)  # Valós árfolyam: USDC/token
                 self.active_trades.append({
                     "token": token_address,
