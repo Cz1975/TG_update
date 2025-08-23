@@ -206,7 +206,7 @@ class TradingBot:
                 msg = (
                     f"✅ Vásárlás sikeres\n"
                     f"Token: {token_address}\n"
-                    f"Összeg: {token_amount:.12f} token\n"
+                    f"Összeg: {adjusted_amount:.12f} token\n"
                     f"Árfolyam: {bought_at:.12f} USDC/token"
                 )
                 logging.info(msg)
